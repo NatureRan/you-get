@@ -1,6 +1,6 @@
 #coding:utf-8
 
-import requests,re,os
+import requests,re,os,shutil
 from ffmpy import FFmpeg
 
 def download_m3u8(url:str):
@@ -15,6 +15,10 @@ def download_m3u8(url:str):
             web=re.search("https://.+",https)
             if web:
                 web_list.append(web.group())
+                continue
+            web=re.search("seg.+",https)
+            if web:
+                web_list.append('https:.../'+web.group())
     files.close()
     headers={
         "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.5060.134 Safari/537.36 Edg/103.0.1264.71"
@@ -22,10 +26,19 @@ def download_m3u8(url:str):
     if not os.path.exists('src/my_get/ts/'):
         os.mkdir('src/my_get/ts/')
     for url,num in zip(web_list,range(1,len(web_list)+1)):
-        resp=requests.get(url,headers=headers)
-        with open(f'src/my_get/ts/{num}.ts','wb') as codes:
-            codes.write(resp.content)
-        codes.close()
+        i = 0
+        while i<10:
+            i+=1
+            try:
+                resp=requests.get(url,headers=headers)
+                with open(f'src/my_get/ts/{num}.ts','wb') as codes:
+                    codes.write(resp.content)
+                    codes.close()
+                    print(f'{num}.ts 下载完成')
+                break
+            except Exception as e:
+                print(f'{num}.ts 下载失败')
+                print(e)
     return len(web_list)
 
 def change(num):
@@ -39,10 +52,11 @@ def change(num):
         os.mkdir('src/my_get/ts/')
     if not os.path.exists('src/my_get/ts_out/'):
         os.mkdir('src/my_get/ts_out/')
-    with open("src/my_get/filelist.txt","a+") as file:
+    current_path = os.getcwd()
+    with open("src/my_get/filelist.txt","w") as file:
         file.write("\n")
         for i in range(1,num+1):#num+1
-            file.write(f"file  '/Users/nature/Code/PythonProject/you-get/src/my_get/ts_out/{i}.ts'\n")
+            file.write(f"file  '{current_path}\\src\\my_get\\ts_out\\{i}.ts'\n")
             with open(f"src/my_get/ts/{str(i)}.ts","rb") as infile:
                 out_ts = f"src/my_get/ts_out/{str(i)}.ts"
                 outfile = open(out_ts, "wb")
@@ -73,14 +87,14 @@ def together(name):
     ff.run()
 
 def del_temp():
-    os.removedirs('src/my_get/ts/')
-    os.removedirs('src/my_get/ts_out/')
+    shutil.rmtree('src/my_get/ts/', True)
+    shutil.rmtree('src/my_get/ts_out/', True)
     os.remove('src/my_get/index.m3u8')
     os.remove('src/my_get/filelist.txt')
 
 if __name__ == '__main__':
-    # num = download_m3u8('https://yun.ssdm.cc/SBDM/SummerTimeRendering01.m3u8')
-    # change(num)
-    # together('SummerTimeRendering01')
+    num = download_m3u8('')
+    change(num)
+    together('')
     # 删除中间文件，只留最后的视频
     del_temp()
