@@ -6,7 +6,8 @@ from ffmpy import FFmpeg
 
 class BaseM3u8Downloader(object):
     def __init__(self):
-        self.m3u8_url = None
+        self.url = None
+        self.__m3u8_url = None
         self.domain = None
         self.name = None
         self.__num = 0
@@ -20,9 +21,19 @@ class BaseM3u8Downloader(object):
             os.mkdir(f'src/my_get/{self.name}/ts/')
         if not os.path.exists(self.video_path):
             os.mkdir(self.video_path)
+    
+    def __download_mp4(self):
+        headers={
+            "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.5060.134 Safari/537.36 Edg/103.0.1264.71"
+        }
+        resp=requests.get(self.url,headers=headers)
+        with open(f'{self.video_path}/{self.name}.mp4','wb') as codes:
+            codes.write(resp.content)
+            codes.close()
+        print(f'{self.name} 下载完成')
 
     def __download_m3u8_url(self):
-        response = requests.get(self.m3u8_url)
+        response = requests.get(self.__m3u8_url)
         file = open(f'src/my_get/{self.name}/index.m3u8', 'w')
         file.write(response.content.decode('utf-8'))
         file.close()
@@ -118,13 +129,20 @@ class BaseM3u8Downloader(object):
     def __del_temp(self):
         shutil.rmtree(f'src/my_get/{self.name}/', True)
 
-    def m3u8_download(self):
+    def download(self):
         assert self.video_path
-        assert self.m3u8_url
+        assert self.url
         assert self.name
-        self.__create_dir()
-        self.__download_m3u8_url()
-        self.__change()
-        self.__together()
-        # 删除中间文件，只留最后的视频
-        self.__del_temp()
+        if 'm3u8' in self.url:
+            # m3u8下载
+            self.__create_dir()
+            self.__m3u8_url = self.url
+            self.__download_m3u8_url()
+            self.__change()
+            self.__together()
+            # 删除中间文件，只留最后的视频
+            self.__del_temp()
+        elif 'mp4' in self.url:
+            # mp4下载
+            self.__download_mp4()
+        
