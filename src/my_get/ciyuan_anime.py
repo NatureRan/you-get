@@ -21,7 +21,7 @@ def crawler_m3u8(name):
         'enableNetwork' : True,
         'enablePage' : False,
         'enableTimeline' : False
-        }
+    }
     chrome_options = Options()
     chrome_options.add_argument('--no-sandbox')
     chrome_options.add_argument('--headless')

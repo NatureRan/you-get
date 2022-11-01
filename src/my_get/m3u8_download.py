@@ -39,11 +39,12 @@ class BaseM3u8Downloader(object):
                     web_list.append('https:.../'+web.group())
         files.close()
         self.__num = len(web_list)
+        self.__finish_num = 0
         # 协程下载
-        asyncio.run(self.___download_web_list(web_list))
+        asyncio.run(self.__download_web_list(web_list))
         
         
-    async def ___download_web_list(self, web_list):
+    async def __download_web_list(self, web_list):
         headers={
             "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.5060.134 Safari/537.36 Edg/103.0.1264.71"
         }
@@ -121,7 +122,6 @@ class BaseM3u8Downloader(object):
         assert self.video_path
         assert self.m3u8_url
         assert self.name
-        self.__finish_num = 0
         self.__create_dir()
         self.__download_m3u8_url()
         self.__change()
