@@ -1,5 +1,6 @@
 #coding:utf-8
 
+from urllib import response
 import requests,re,os,shutil
 import asyncio
 from ffmpy import FFmpeg
@@ -26,11 +27,17 @@ class BaseM3u8Downloader(object):
         headers={
             "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.5060.134 Safari/537.36 Edg/103.0.1264.71"
         }
-        resp=requests.get(self.url,headers=headers)
-        with open(f'{self.video_path}/{self.name}.mp4','wb') as codes:
-            codes.write(resp.content)
-            codes.close()
-        print(f'{self.name} 下载完成')
+        response = requests.get(self.url,headers=headers,stream=True)
+        chunk_size = 1024 # 单次请求最大值
+        content_length = int(response.headers['content-length']) # 内容总体大小（字节）
+        print(content_length, type(content_length))
+        data_length = 0
+        with open(f'{self.video_path}/{self.name}.mp4','wb') as file:
+            for data in response.iter_content(chunk_size=chunk_size):
+                file.write(data)
+                data_length += len(data)
+                print(f'{self.name} 正在下载 {int(data_length/1024)}KB / {int(content_length/1024)}KB 进度:{int(1.0 * data_length / content_length * 100)}%', end='\r')
+        print(f'{self.name} 下载完成', end='\n')
 
     def __download_m3u8_url(self):
         response = requests.get(self.__m3u8_url)
@@ -109,7 +116,7 @@ class BaseM3u8Downloader(object):
         # 整合文件索引
         current_path = os.getcwd()
         current_path = current_path.replace('\\', '/')
-        with open(f"src/my_get/{self.name}/filelist.txt","w") as file:
+        with open(f"src/my_get/{self.name}/filelist.txt","w", encoding='utf-8') as file:
             file.write("\n")
             for i in range(1, self.__num+1):#num+1
                 file.write(f"file  '{current_path}/src/my_get/{self.name}/ts/{i}.ts'\n")
@@ -133,16 +140,23 @@ class BaseM3u8Downloader(object):
         assert self.video_path
         assert self.url
         assert self.name
+        self.__create_dir()
         if 'm3u8' in self.url:
             # m3u8下载
-            self.__create_dir()
             self.__m3u8_url = self.url
             self.__download_m3u8_url()
             self.__change()
             self.__together()
-            # 删除中间文件，只留最后的视频
-            self.__del_temp()
         elif 'mp4' in self.url:
             # mp4下载
             self.__download_mp4()
         
+        # 删除中间文件，只留最后的视频
+        self.__del_temp()
+        
+# if __name__ == '__main__':
+#     downloader = BaseM3u8Downloader()
+#     downloader.url = 'https://rich-media-resource.nosdn.127.net/20221102021307/53e0699671a5705dd5197a01c8017dd4/media_file_20221101014734295_kbnbbnyqza5med14i0yaw6uzvlc0vf.mp4'
+#     downloader.name = '夏日重现2'
+#     downloader.video_path = 'I:/Videos/动漫/夏日重现/'
+#     downloader.download()

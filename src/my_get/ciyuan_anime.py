@@ -47,6 +47,7 @@ def find_video_url(url):
             if mp4:
                 print(f'{text} 抓取到mp4链接 {mp4.group()}')
                 return text,mp4.group()
+    return '', ''
 
 def crawler_video_urls(name):
     print(f'开始搜索片名:{name}')
@@ -71,7 +72,7 @@ def crawler_video_urls(name):
     return video_urls
 
 if __name__ == '__main__':
-    name = '夏日重现'
+    name = '边缘行者'
     video_urls = crawler_video_urls(name)
     driver.quit()
     if not video_urls:
@@ -79,7 +80,7 @@ if __name__ == '__main__':
         exit()
     
     ciYuanAnimeDownloader = CiYuanAnimeDownloader()
-    ciYuanAnimeDownloader.video_path = f'/Users/nature/Movies/{name}/'
+    ciYuanAnimeDownloader.video_path = f'I:/Videos/动漫/{name}/'
     for key in video_urls.keys():
         ciYuanAnimeDownloader.url = video_urls.get(key)
         ciYuanAnimeDownloader.name = name + '-' + key
