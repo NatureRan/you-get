@@ -4,7 +4,9 @@ from m3u8_download import BaseM3u8Downloader
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
-import time,json,re
+from concurrent.futures import ThreadPoolExecutor
+from concurrent import futures
+import time,json,re,threading
 
 class CiYuanAnimeDownloader(BaseM3u8Downloader):
 
@@ -28,7 +30,7 @@ chrome_options.add_argument('--disable-gpu')
 chrome_options.add_argument('--window-size=1920,1080')
 chrome_options.add_argument('user-agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_13_4) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/65.0.3325.181 Safari/537.36"')
 chrome_options.add_experimental_option('w3c', False) # 设置这个属性可以使用driver.get_log()方法 不然报错
-driver = webdriver.Chrome(desired_capabilities=caps, chrome_options=chrome_options)
+
 
 def find_video_url(url):
     print(f'开始抓取url:{url}')
@@ -49,11 +51,14 @@ def find_video_url(url):
                 return text,mp4.group()
     return '', ''
 
-def crawler_video_urls(name):
+def crawler_video_urls(name, index, size):
     print(f'开始搜索片名:{name}')
     driver.get(f'http://www.cycdm01.top/search.html?wd={name}')
-    driver.find_element_by_xpath('//a[@class="play-btn-o"]').click()
-    elements = driver.find_elements_by_xpath('//div[@class="module-list sort-list tab-list his-tab-list active"]//a[@class="module-play-list-link"]')
+    try:
+        driver.find_element_by_xpath('//a[@class="play-btn-o"]').click()
+        elements = driver.find_elements_by_xpath('//div[@class="module-list sort-list tab-list his-tab-list active"]//a[@class="module-play-list-link"]')
+    except Exception as e:
+        elements = None
     if elements:
         print(f'搜索到资源 {name} 共{len(elements)}集')
     else:
@@ -63,25 +68,49 @@ def crawler_video_urls(name):
     video_urls = {}
     for e in elements:
         urls.append(e.get_attribute('href'))
-    for url in urls:
-        text,video_url = find_video_url(url)
+    # 判断index是否超出总集数
+    if index > len(elements):
+        print('设置的集数超出总集数')
+    for i in range(index - 1, min(index + size - 1, len(elements) - 1)):
+        text,video_url = find_video_url(urls[i])
         if not text:
             continue
         video_urls[text] = video_url
-        
     return video_urls
 
+def download(name, key, url):
+    ciYuanAnimeDownloader = CiYuanAnimeDownloader()
+    ciYuanAnimeDownloader.video_path = f'I:/Videos/动漫/{name}/'
+    ciYuanAnimeDownloader.url = url
+    ciYuanAnimeDownloader.name = name + '-' + key
+    ciYuanAnimeDownloader.download()
+
+
+
+
 if __name__ == '__main__':
-    name = '边缘行者'
-    video_urls = crawler_video_urls(name)
-    driver.quit()
+    name = '游戏王－怪兽之决斗GX'
+    index = 1 # 从第几集开始 （最小1）
+    size = 1 # 一次下载的集数
+    # 初始化chromeDriver
+    driver = webdriver.Chrome(desired_capabilities=caps, chrome_options=chrome_options)
+    try:
+        video_urls = crawler_video_urls(name, index, size)
+    except Exception as e:
+        pass
+    finally:
+        driver.quit()
     if not video_urls:
         print('没有抓取到视频链接')
         exit()
+
+    # 开启线程池执行
+    with ThreadPoolExecutor(max_workers=10) as executor:
+        task_list = [executor.submit(download, name, key, video_urls.get(key)) for key in video_urls.keys()]
+        for fu in futures.as_completed(task_list):
+            print(fu.result(), fu)
     
-    ciYuanAnimeDownloader = CiYuanAnimeDownloader()
-    ciYuanAnimeDownloader.video_path = f'I:/Videos/动漫/{name}/'
-    for key in video_urls.keys():
-        ciYuanAnimeDownloader.url = video_urls.get(key)
-        ciYuanAnimeDownloader.name = name + '-' + key
-        ciYuanAnimeDownloader.download()
+    # 开启多线程执行
+    # for key in video_urls.keys():
+    #     t = threading.Thread(target=download, args=(name, key, video_urls.get(key)))
+    #     t.start()

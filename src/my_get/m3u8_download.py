@@ -58,16 +58,14 @@ class BaseM3u8Downloader(object):
         files.close()
         self.__num = len(web_list)
         self.__finish_num = 0
-        # 协程下载
-        asyncio.run(self.__download_web_list(web_list))
-        
-        
-    async def __download_web_list(self, web_list):
+        # 协程下载 （这边使用new_event_loop 而不是 get_event_loop，是因为event_loop只有主线程自带，外部使用多线程就无法get到event_loop了）
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
         headers={
             "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.5060.134 Safari/537.36 Edg/103.0.1264.71"
         }
-        tasks = [asyncio.create_task(self.__download_ts(url, num, headers)) for url,num in zip(web_list,range(1,self.__num+1))]
-        await asyncio.gather(*tasks)
+        tasks = [loop.create_task(self.__download_ts(url, num, headers)) for url,num in zip(web_list,range(1,self.__num+1))]
+        loop.run_until_complete(asyncio.gather(*tasks))
 
     async def __download_ts(self, url, num, headers):
         i = 0
@@ -116,6 +114,11 @@ class BaseM3u8Downloader(object):
         # 整合文件索引
         current_path = os.getcwd()
         current_path = current_path.replace('\\', '/')
+        video_file_name = f'{self.video_path}/{self.name}.mp4'
+        # 判断文件是否存在
+        if os.path.exists(video_file_name):
+            print(f'{video_file_name} 已经存在')
+            return
         with open(f"src/my_get/{self.name}/filelist.txt","w", encoding='utf-8') as file:
             file.write("\n")
             for i in range(1, self.__num+1):#num+1
@@ -127,11 +130,15 @@ class BaseM3u8Downloader(object):
                 f"src/my_get/{self.name}/filelist.txt":"-f concat -safe 0"
             },
             outputs={
-                f"{self.video_path}/{self.name}.mp4":"-c copy"
+                video_file_name:"-c copy"
             }
         )
         # print(ff.cmd)
-        ff.run()
+        try:
+            ff.run()
+        except Exception as e:
+            print(f'{video_file_name} 合成失败')
+            print(e)
 
     def __del_temp(self):
         shutil.rmtree(f'src/my_get/{self.name}/', True)
