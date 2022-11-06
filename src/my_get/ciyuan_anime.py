@@ -6,7 +6,7 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
 from concurrent.futures import ThreadPoolExecutor
 from concurrent import futures
-import time,json,re,threading
+import time,json,re,threading,asyncio
 
 class CiYuanAnimeDownloader(BaseM3u8Downloader):
 
@@ -32,7 +32,7 @@ chrome_options.add_argument('user-agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 
 chrome_options.add_experimental_option('w3c', False) # 设置这个属性可以使用driver.get_log()方法 不然报错
 
 
-def find_video_url(url):
+async def find_video_url(url):
     print(f'开始抓取url:{url}')
     driver.get(url)
     time.sleep(3)
@@ -71,8 +71,12 @@ def crawler_video_urls(name, index, size):
     # 判断index是否超出总集数
     if index > len(elements):
         print('设置的集数超出总集数')
-    for i in range(index - 1, min(index + size - 1, len(elements) - 1)):
-        text,video_url = find_video_url(urls[i])
+    loop = asyncio.get_event_loop()
+    tasks = [loop.create_task(find_video_url(urls[i])) for i in range(index - 1, min(index + size - 1, len(elements) - 1))]
+    loop.run_until_complete(asyncio.gather(*tasks))
+    # 获取协程的返回结果
+    for task in tasks:
+        text, video_url = task.result()
         if not text:
             continue
         video_urls[text] = video_url
@@ -91,7 +95,7 @@ def download(name, key, url):
 if __name__ == '__main__':
     name = '游戏王－怪兽之决斗GX'
     index = 1 # 从第几集开始 （最小1）
-    size = 1 # 一次下载的集数
+    size = 10 # 一次下载的集数
     # 初始化chromeDriver
     driver = webdriver.Chrome(desired_capabilities=caps, chrome_options=chrome_options)
     try:
@@ -109,8 +113,3 @@ if __name__ == '__main__':
         task_list = [executor.submit(download, name, key, video_urls.get(key)) for key in video_urls.keys()]
         for fu in futures.as_completed(task_list):
             print(fu.result(), fu)
-    
-    # 开启多线程执行
-    # for key in video_urls.keys():
-    #     t = threading.Thread(target=download, args=(name, key, video_urls.get(key)))
-    #     t.start()
