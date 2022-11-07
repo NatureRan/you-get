@@ -72,7 +72,7 @@ def crawler_video_urls(name, index, size):
     if index > len(elements):
         print('设置的集数超出总集数')
     loop = asyncio.get_event_loop()
-    tasks = [loop.create_task(find_video_url(urls[i])) for i in range(index - 1, min(index + size - 1, len(elements) - 1))]
+    tasks = [loop.create_task(find_video_url(urls[i])) for i in range(index - 1, min(index + size - 1, len(elements)))]
     loop.run_until_complete(asyncio.gather(*tasks))
     # 获取协程的返回结果
     for task in tasks:
@@ -93,9 +93,9 @@ def download(name, key, url):
 
 
 if __name__ == '__main__':
-    name = '游戏王－怪兽之决斗GX'
-    index = 1 # 从第几集开始 （最小1）
-    size = 10 # 一次下载的集数
+    name = '机动战士高达 水星的魔女'
+    index = 6 # 从第几集开始 （最小1）
+    size = 1 # 一次下载的集数
     # 初始化chromeDriver
     driver = webdriver.Chrome(desired_capabilities=caps, chrome_options=chrome_options)
     try:
