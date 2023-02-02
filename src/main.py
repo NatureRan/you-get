@@ -27,6 +27,7 @@ class MainWindow(QWidget):
         self.log = QTextBrowser()
         sys.stdout = Stream(newText = self.onUpdateText)
         sys.stderr = Stream(newText = self.onUpdateText)
+        self.downloadThread = None
         self.initUI()
 
     def onUpdateText(self, text):
@@ -77,9 +78,10 @@ class MainWindow(QWidget):
         self.move(qr.topLeft())
 
     def urlCheckBtnClick(self):
-        url = self.urlEdit.text()
-        thread = threading.Thread(target=self.download, args=(url,))
-        thread.start()
+        if self.downloadThread is None or not self.downloadThread.isAlive():
+            url = self.urlEdit.text()
+            self.downloadThread = threading.Thread(target=self.download, args=(url,))
+            self.downloadThread.start()
 
     def download(self, url):
         print('解析视频地址:' + self.urlEdit.text())
@@ -88,6 +90,9 @@ class MainWindow(QWidget):
         print('视频下载完成')
 
     def closeEvent(self, event):
+        if self.downloadThread is None or not self.downloadThread.isAlive():
+            event.accept()
+            return
 
         reply = QMessageBox.question(self, 'Message', 
             "存在进行中的下载，是否继续退出？", 
