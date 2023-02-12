@@ -86,7 +86,10 @@ class MainWindow(QWidget):
     def download(self, url):
         print('解析视频地址:' + self.urlEdit.text())
         # 将连接提交到下载API，需要设置保存路径
-        common.any_download(url=url, output_dir = '/Users/nature/Downloads/', merge = True)
+        
+        # 设置cookies
+        cookies = "buvid3=D3B32370-DB37-5E8D-0A24-78D61EA62F0270582infoc; b_nut=1669859570; CURRENT_FNVAL=4048; _uuid=F2107158E-6176-AD37-9473-25C8237A10AB671305infoc; buvid4=F469F376-C5AF-946D-48D1-05C894F57FFE72657-022120109-6o7K6K3q2F8iMBrFaJP8BA%3D%3D; rpdid=|(YYl~J~Rl~0J'uYYm)lml~Y; buvid_fp_plain=undefined; DedeUserID=10981709; DedeUserID__ckMd5=ac5ad7be8ffb1117; i-wanna-go-back=-1; b_ut=5; nostalgia_conf=-1; PVID=1; CURRENT_QUALITY=116; fingerprint=c54f5831495f88ca0442a0ee0a8d9c85; theme_style=light; share_source_origin=copy_link; buvid_fp=c54f5831495f88ca0442a0ee0a8d9c85; bsource=search_google; bp_video_offset_10981709=758312639937904600; innersign=1; bili_jct=68b57d1113b3381ef7a579fd651490b9; sid=7yzxctgc; b_lsid=77468866_18615D0DBF9"
+        common.any_download(url=url, output_dir = '/Users/nature/Downloads/', merge = True, cookies=cookies)
         print('视频下载完成')
 
     def closeEvent(self, event):
