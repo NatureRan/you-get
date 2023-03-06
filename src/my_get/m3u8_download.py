@@ -59,6 +59,7 @@ class BaseM3u8Downloader(object):
         self.__num = len(web_list)
         self.__finish_num = 0
         # 协程下载 （这边使用new_event_loop 而不是 get_event_loop，是因为event_loop只有主线程自带，外部使用多线程就无法get到event_loop了）
+        # 如果外部没有开多线程，这个协程好像很慢。。。
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         headers={
@@ -161,9 +162,9 @@ class BaseM3u8Downloader(object):
         # 删除中间文件，只留最后的视频
         self.__del_temp()
         
-# if __name__ == '__main__':
-#     downloader = BaseM3u8Downloader()
-#     downloader.url = 'https://rich-media-resource.nosdn.127.net/20221102021307/53e0699671a5705dd5197a01c8017dd4/media_file_20221101014734295_kbnbbnyqza5med14i0yaw6uzvlc0vf.mp4'
-#     downloader.name = '夏日重现2'
-#     downloader.video_path = 'I:/Videos/动漫/夏日重现/'
-#     downloader.download()
+if __name__ == '__main__':
+    downloader = BaseM3u8Downloader()
+    downloader.url = 'https://v1.cdtlas.com/20210831/Ny5lyotC/hls/index.m3u8'
+    downloader.name = '进击的巨人01'
+    downloader.video_path = 'I:/Videos/动漫/进击的巨人/'
+    downloader.download()
