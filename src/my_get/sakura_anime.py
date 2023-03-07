@@ -1,6 +1,7 @@
 # coding:utf-8
 
 from concurrent.futures import ThreadPoolExecutor
+from concurrent import futures
 
 import requests
 import re
