@@ -3,10 +3,10 @@
 from urllib import response
 import requests,re,os,shutil
 import asyncio
-import socket
+import aiohttp, aiofiles
 from ffmpy import FFmpeg
 
-base_path = 'src/my_get/download_cache'
+download_cache_path = 'src/my_get/download_cache'
 
 class BaseM3u8Downloader(object):
     def __init__(self):
@@ -17,12 +17,14 @@ class BaseM3u8Downloader(object):
         self.__num = 0
         self.video_path = None
         self.__finish_num = 0
+        self.session = None
+        self.headers = {}
     
     def __create_dir(self):
-        if not os.path.exists(f'{base_path}/{self.name}/'):
-            os.mkdir(f'{base_path}/{self.name}/')
-        if not os.path.exists(f'{base_path}/{self.name}/ts/'):
-            os.mkdir(f'{base_path}/{self.name}/ts/')
+        if not os.path.exists(f'{download_cache_path}/{self.name}/'):
+            os.mkdir(f'{download_cache_path}/{self.name}/')
+        if not os.path.exists(f'{download_cache_path}/{self.name}/ts/'):
+            os.mkdir(f'{download_cache_path}/{self.name}/ts/')
         if not os.path.exists(self.video_path):
             os.mkdir(self.video_path)
     
@@ -44,16 +46,20 @@ class BaseM3u8Downloader(object):
 
     def __download_m3u8_url(self):
         response = requests.get(self.__m3u8_url)
-        file = open(f'{base_path}/{self.name}/index.m3u8', 'w')
+        file = open(f'{download_cache_path}/{self.name}/index.m3u8', 'w')
         file.write(response.content.decode('utf-8'))
         file.close()
         web_list=[]
-        with open(f'{base_path}/{self.name}/index.m3u8','r') as files:
+        with open(f'{download_cache_path}/{self.name}/index.m3u8','r') as files:
             lines_list=files.readlines()
             for https in lines_list:
                 web=re.search("https://.+",https)
                 if web:
                     web_list.append(web.group())
+                    continue
+                web = re.search("/[a-zA-Z0-9%?&=_./]*ts",https)
+                if web:
+                    web_list.append(self.domain + web.group())
                     continue
                 web=re.search("seg.+",https)
                 if web:
@@ -63,32 +69,38 @@ class BaseM3u8Downloader(object):
         self.__finish_num = 0
         # 协程下载 （这边使用new_event_loop 而不是 get_event_loop，是因为event_loop只有主线程自带，外部使用多线程就无法get到event_loop了）
         # 如果外部没有开多线程，这个协程好像很慢。。。
-        # 使用requests的session来复用tcp链接
-        headers={
+        self.headers = {
+            # aiohttp 不支持http2.0
+            "Upgrade": "http/1.1",
             "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.5060.134 Safari/537.36 Edg/103.0.1264.71"
         }
-        session = requests.Session()
-        session.headers.update(headers)
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
-        tasks = [loop.create_task(self.__download_ts(session, url, num)) for url,num in zip(web_list,range(1,self.__num+1))]
+        # 使用信号量控制协程并发数
+        sem = asyncio.Semaphore(32)
+        tasks = [loop.create_task(self.__download_ts(url, num, sem)) for url,num in zip(web_list,range(1,self.__num+1))]
         loop.run_until_complete(asyncio.gather(*tasks))
 
-    async def __download_ts(self, session, url, num):
-        i = 0
-        while i<10:
-            i+=1
-            try:
-                resp=session.get(url)
-                with open(f'{base_path}/{self.name}/ts/{num}.ts','wb') as codes:
-                    codes.write(resp.content)
-                    codes.close()
-                    self.__finish_num += 1
-                    print(f'{self.name} 下载进度:{self.__finish_num}/{self.__num}', end='\r')
-                break
-            except Exception as e:
-                print(f'{self.name} {num}.ts 下载失败')
-                print(e)
+    async def __init_session(self):
+        if self.session is None:
+            self.session = aiohttp.ClientSession(headers = self.headers)
+
+    async def __download_ts(self, url, num, sem):
+        async with sem:
+            for i in range(0, 10):
+                try:
+                    # 使用aiohttp来实现异步网络请求
+                    await self.__init_session()
+                    async with self.session.get(url) as resp:
+                        data = await resp.read()
+                        async with aiofiles.open(f'{download_cache_path}/{self.name}/ts/{num}.ts','wb') as codes:
+                            await codes.write(data)
+                            self.__finish_num += 1
+                            print(f'{self.name} 下载进度:{self.__finish_num}/{self.__num}', end='\r')
+                            break
+                except Exception as e:
+                    print(f'{self.name} {num}.ts 下载失败 当前重试第{i+1}次')
+                    print(e)
 
     def __change(self):
         """
@@ -100,9 +112,9 @@ class BaseM3u8Downloader(object):
         current_path = os.getcwd()
         current_path = current_path.replace('\\', '/')
         for i in range(1, self.__num+1):#num+1
-            with open(f"{base_path}/{self.name}/ts/{i}.ts","rb") as in_file:
+            with open(f"{download_cache_path}/{self.name}/ts/{i}.ts","rb") as in_file:
                 data = in_file.read()
-                out_file = open(f"{base_path}/{self.name}/ts/{i}.ts","wb")
+                out_file = open(f"{download_cache_path}/{self.name}/ts/{i}.ts","wb")
                 out_file.write(data)
                 out_file.seek(0x00)
                 out_file.write(b'\xff\xff\xff\xff')
@@ -126,15 +138,15 @@ class BaseM3u8Downloader(object):
         if os.path.exists(video_file_name):
             print(f'{video_file_name} 已经存在')
             return
-        with open(f"{base_path}/{self.name}/filelist.txt","w", encoding='utf-8') as file:
+        with open(f"{download_cache_path}/{self.name}/filelist.txt","w", encoding='utf-8') as file:
             file.write("\n")
             for i in range(1, self.__num+1):#num+1
-                file.write(f"file  '{current_path}/{base_path}/{self.name}/ts/{i}.ts'\n")
+                file.write(f"file  '{current_path}/{download_cache_path}/{self.name}/ts/{i}.ts'\n")
         file.close()
         
         ff=FFmpeg(
             inputs={
-                f"{base_path}/{self.name}/filelist.txt":"-f concat -safe 0"
+                f"{download_cache_path}/{self.name}/filelist.txt":"-f concat -safe 0"
             },
             outputs={
                 video_file_name:"-c copy"
@@ -148,12 +160,14 @@ class BaseM3u8Downloader(object):
             print(e)
 
     def __del_temp(self):
-        shutil.rmtree(f'{base_path}/{self.name}/', True)
+        shutil.rmtree(f'{download_cache_path}/{self.name}/', True)
 
     def download(self):
         assert self.video_path
         assert self.url
         assert self.name
+        self.domain = re.search(r'https://[a-zA-Z0-9%?&=_.]*/', self.url).group()
+        assert self.domain
         self.__create_dir()
         if 'm3u8' in self.url:
             # m3u8下载
@@ -170,7 +184,7 @@ class BaseM3u8Downloader(object):
         
 if __name__ == '__main__':
     downloader = BaseM3u8Downloader()
-    downloader.url = 'https://v1.cdtlas.com/20210831/Ny5lyotC/hls/index.m3u8'
+    downloader.url = 'https://v8.dious.cc//20230130/zsYymFXa/1500kb/hls/index.m3u8'
     downloader.name = '进击的巨人01'
     downloader.video_path = 'I:/Videos/动漫/进击的巨人/'
     downloader.download()
