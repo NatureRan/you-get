@@ -63,24 +63,23 @@ class BaseM3u8Downloader(object):
         self.__finish_num = 0
         # 协程下载 （这边使用new_event_loop 而不是 get_event_loop，是因为event_loop只有主线程自带，外部使用多线程就无法get到event_loop了）
         # 如果外部没有开多线程，这个协程好像很慢。。。
-        # 开启socket的keepalive提升下载速度
-        s=socket.socket(socket.AF_INET,socket.SOCK_STREAM)
-        s.ioctl(socket.SIO_KEEPALIVE_VALS, (1, 10000, 3000))
-        
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
+        # 使用requests的session来复用tcp链接
         headers={
             "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.5060.134 Safari/537.36 Edg/103.0.1264.71"
         }
-        tasks = [loop.create_task(self.__download_ts(url, num, headers)) for url,num in zip(web_list,range(1,self.__num+1))]
+        session = requests.Session()
+        session.headers.update(headers)
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        tasks = [loop.create_task(self.__download_ts(session, url, num)) for url,num in zip(web_list,range(1,self.__num+1))]
         loop.run_until_complete(asyncio.gather(*tasks))
 
-    async def __download_ts(self, url, num, headers):
+    async def __download_ts(self, session, url, num):
         i = 0
         while i<10:
             i+=1
             try:
-                resp=requests.get(url,headers=headers)
+                resp=session.get(url)
                 with open(f'{base_path}/{self.name}/ts/{num}.ts','wb') as codes:
                     codes.write(resp.content)
                     codes.close()
