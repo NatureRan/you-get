@@ -3,7 +3,10 @@
 from urllib import response
 import requests,re,os,shutil
 import asyncio
+import socket
 from ffmpy import FFmpeg
+
+base_path = 'src/my_get/download_cache'
 
 class BaseM3u8Downloader(object):
     def __init__(self):
@@ -16,10 +19,10 @@ class BaseM3u8Downloader(object):
         self.__finish_num = 0
     
     def __create_dir(self):
-        if not os.path.exists(f'src/my_get/{self.name}/'):
-            os.mkdir(f'src/my_get/{self.name}/')
-        if not os.path.exists(f'src/my_get/{self.name}/ts/'):
-            os.mkdir(f'src/my_get/{self.name}/ts/')
+        if not os.path.exists(f'{base_path}/{self.name}/'):
+            os.mkdir(f'{base_path}/{self.name}/')
+        if not os.path.exists(f'{base_path}/{self.name}/ts/'):
+            os.mkdir(f'{base_path}/{self.name}/ts/')
         if not os.path.exists(self.video_path):
             os.mkdir(self.video_path)
     
@@ -41,11 +44,11 @@ class BaseM3u8Downloader(object):
 
     def __download_m3u8_url(self):
         response = requests.get(self.__m3u8_url)
-        file = open(f'src/my_get/{self.name}/index.m3u8', 'w')
+        file = open(f'{base_path}/{self.name}/index.m3u8', 'w')
         file.write(response.content.decode('utf-8'))
         file.close()
         web_list=[]
-        with open(f'src/my_get/{self.name}/index.m3u8','r') as files:
+        with open(f'{base_path}/{self.name}/index.m3u8','r') as files:
             lines_list=files.readlines()
             for https in lines_list:
                 web=re.search("https://.+",https)
@@ -60,6 +63,10 @@ class BaseM3u8Downloader(object):
         self.__finish_num = 0
         # 协程下载 （这边使用new_event_loop 而不是 get_event_loop，是因为event_loop只有主线程自带，外部使用多线程就无法get到event_loop了）
         # 如果外部没有开多线程，这个协程好像很慢。。。
+        # 开启socket的keepalive提升下载速度
+        s=socket.socket(socket.AF_INET,socket.SOCK_STREAM)
+        s.ioctl(socket.SIO_KEEPALIVE_VALS, (1, 10000, 3000))
+        
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         headers={
@@ -74,7 +81,7 @@ class BaseM3u8Downloader(object):
             i+=1
             try:
                 resp=requests.get(url,headers=headers)
-                with open(f'src/my_get/{self.name}/ts/{num}.ts','wb') as codes:
+                with open(f'{base_path}/{self.name}/ts/{num}.ts','wb') as codes:
                     codes.write(resp.content)
                     codes.close()
                     self.__finish_num += 1
@@ -94,9 +101,9 @@ class BaseM3u8Downloader(object):
         current_path = os.getcwd()
         current_path = current_path.replace('\\', '/')
         for i in range(1, self.__num+1):#num+1
-            with open(f"src/my_get/{self.name}/ts/{i}.ts","rb") as in_file:
+            with open(f"{base_path}/{self.name}/ts/{i}.ts","rb") as in_file:
                 data = in_file.read()
-                out_file = open(f"src/my_get/{self.name}/ts/{i}.ts","wb")
+                out_file = open(f"{base_path}/{self.name}/ts/{i}.ts","wb")
                 out_file.write(data)
                 out_file.seek(0x00)
                 out_file.write(b'\xff\xff\xff\xff')
@@ -120,15 +127,15 @@ class BaseM3u8Downloader(object):
         if os.path.exists(video_file_name):
             print(f'{video_file_name} 已经存在')
             return
-        with open(f"src/my_get/{self.name}/filelist.txt","w", encoding='utf-8') as file:
+        with open(f"{base_path}/{self.name}/filelist.txt","w", encoding='utf-8') as file:
             file.write("\n")
             for i in range(1, self.__num+1):#num+1
-                file.write(f"file  '{current_path}/src/my_get/{self.name}/ts/{i}.ts'\n")
+                file.write(f"file  '{current_path}/{base_path}/{self.name}/ts/{i}.ts'\n")
         file.close()
         
         ff=FFmpeg(
             inputs={
-                f"src/my_get/{self.name}/filelist.txt":"-f concat -safe 0"
+                f"{base_path}/{self.name}/filelist.txt":"-f concat -safe 0"
             },
             outputs={
                 video_file_name:"-c copy"
@@ -142,7 +149,7 @@ class BaseM3u8Downloader(object):
             print(e)
 
     def __del_temp(self):
-        shutil.rmtree(f'src/my_get/{self.name}/', True)
+        shutil.rmtree(f'{base_path}/{self.name}/', True)
 
     def download(self):
         assert self.video_path

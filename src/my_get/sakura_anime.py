@@ -28,7 +28,7 @@ def get_video_url(main_m3u8_url):
     return host.group() + path.group()
 
 def download(i:int):
-    main_m3u8_url = get_main_m3u8_url(f'https://zgjmw.net/bofang/1944-0-{i}.html')
+    main_m3u8_url = get_main_m3u8_url(f'https://zgjmw.net/bofang/1943-0-{i}.html')
     # print(main_m3u8_url)
     video_url = get_video_url(main_m3u8_url)
     print(video_url)
@@ -42,7 +42,7 @@ def download(i:int):
 if __name__ == '__main__':
 
     # 开启线程池执行
-    with ThreadPoolExecutor(max_workers=10) as executor:
-        task_list = [executor.submit(download, i) for i in range(0, 26)]
+    with ThreadPoolExecutor(max_workers=12) as executor:
+        task_list = [executor.submit(download, i) for i in range(0, 12)]
         for fu in futures.as_completed(task_list):
             print(fu.result(), fu)
