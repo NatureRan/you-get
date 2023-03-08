@@ -26,10 +26,14 @@ def get_video_url(main_m3u8_url):
     # 匹配第一个m3u8链接，完成拼接  /20210831/Ny5lyotC/hls/index.m3u8
     host = re.search(r'https://[a-zA-Z0-9%?&=_.]*/', main_m3u8_url)
     path = re.search(r'/[a-zA-Z0-9%?&=_./]*m3u8', res_content)
-    return host.group() + path.group()
+    if path:
+        return host.group() + path.group()
+    else:
+        # 主m3u8文件直接就是视频源
+        return main_m3u8_url
 
 def download(i:int):
-    main_m3u8_url = get_main_m3u8_url(f'https://zgjmw.net/bofang/9293-0-{i}.html')
+    main_m3u8_url = get_main_m3u8_url(f'https://zgjmw.net/bofang/4024-0-{i}.html')
     # print(main_m3u8_url)
     video_url = get_video_url(main_m3u8_url)
     print(video_url)
